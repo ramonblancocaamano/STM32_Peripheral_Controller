@@ -1,0 +1,39 @@
+# Proyecto STM32 - Periférico I2C para GPIOs y ADCs
+
+## Descripción
+
+Desarrollo periférico I2C en microcontrolador STM32 para la configuracion/lectura de GPIOs y ADC:
+ - Lectura de 2x ADC. Asumo uso de conversor 5-20V a 0-3.3V
+ - Lectura estado 8 GPIOs.
+ - Configuración polaridad/nivel de 8 GPIOs, usando modulo ISO1H816G conectado por SPI.
+
+## Registros I2C
+
+- Registro 0x00: Lectura del ADC1 (1 bytes).
+- Registro 0x01: Lectura del ADC2 (1 bytes).
+- Registro 0x02: Lectura del estado de los GPIOs (1 byte).
+- Registro 0x03: Configuración polaridad ISO1H816G (1 byte).
+- Registro 0x04: Configuración nivel ISO1H816G (1 byte).
+
+
+# Pinout
+
+ADC1_INO PA0
+ADC2_IN1 PA1
+
+IN_0 PA13
+IN_1 PA12
+IN_2 PA11
+IN_3 PA10
+IN_4 PA9
+IN_5 PA8
+IN_6 PB15
+IN_7 PB14
+
+ICC1_SDA PB7
+I2C1_SCL PB6
+
+SPI1_NSS PA4
+SPI1_SCK PA5
+SPI1_MISO PA6
+SPI1_MOSI PA7
