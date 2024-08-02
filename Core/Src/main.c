@@ -1,6 +1,7 @@
 #include "main.h"
 
 ADC_HandleTypeDef hadc1;
+ADC_HandleTypeDef hadc2;
 I2C_HandleTypeDef hi2c1;
 SPI_HandleTypeDef hspi1;
 
@@ -9,17 +10,84 @@ static void MX_GPIO_Init(void);
 static void MX_ADC1_Init(void);
 static void MX_I2C1_Init(void);
 static void MX_SPI1_Init(void);
+static void MX_ADC2_Init(void);
+
+#define I2C_ADDR 0x68
+#define I2C_CASE_ADC_0 0x00
+#define I2C_CASE_ADC_1 0x01
+#define I2C_CASE_GPIOS 0x02
+#define I2C_CASE_ISO1H816G_POLARITY 0x03
+#define I2C_CASE_ISO1H816G_LEVEL 0x04
+
+uint8_t i2c_buff[10];
 
 int main(void) {
-    HAL_Init();
     SystemClock_Config();
 
     MX_GPIO_Init();
     MX_ADC1_Init();
     MX_I2C1_Init();
     MX_SPI1_Init();
+    MX_ADC2_Init();
 
     while (1) {
+        if (HAL_I2C_Master_Receive_IT(&hi2c1, I2C_ADDR << 1, i2c_buff, sizeof(i2c_buff)) != HAL_OK) {
+            Error_Handler();
+        }
+
+        HAL_Delay(1000);
+    }
+}
+
+void HAL_I2C_MasterRxCpltCallback(I2C_HandleTypeDef *hi2c) {
+    uint8_t i2c_data;
+
+    uint8_t adc1_value;
+    uint8_t adc2_value;
+    uint8_t gpio_state;
+    uint8_t polarity;
+    uint8_t level;
+
+    HAL_ADC_Start(&hadc1);
+    HAL_ADC_PollForConversion(&hadc1, HAL_MAX_DELAY);
+    adc1_value = HAL_ADC_GetValue(&hadc1);
+
+    HAL_ADC_Start(&hadc2);
+    HAL_ADC_PollForConversion(&hadc2, HAL_MAX_DELAY);
+    adc2_value = HAL_ADC_GetValue(&hadc2);
+
+    gpio_state = 0x00;
+    gpio_state |= HAL_GPIO_ReadPin(GPIOA, IN_0_Pin);
+    gpio_state |= (HAL_GPIO_ReadPin(GPIOA, IN_1_Pin)) << 1;
+    gpio_state |= (HAL_GPIO_ReadPin(GPIOA, IN_2_Pin)) << 2;
+    gpio_state |= (HAL_GPIO_ReadPin(GPIOA, IN_3_Pin)) << 3;
+    gpio_state |= (HAL_GPIO_ReadPin(GPIOA, IN_4_Pin)) << 4;
+    gpio_state |= (HAL_GPIO_ReadPin(GPIOA, IN_5_Pin)) << 5;
+    gpio_state |= (HAL_GPIO_ReadPin(GPIOB, IN_6_Pin)) << 6;
+    gpio_state |= (HAL_GPIO_ReadPin(GPIOB, IN_7_Pin)) << 7;
+
+    HAL_I2C_Master_Receive(hi2c, I2C_ADDR, &i2c_data, 1, HAL_MAX_DELAY);
+
+    switch (i2c_data) {
+        case I2C_CASE_ADC_0:
+            HAL_I2C_Master_Transmit(hi2c, I2C_ADDR, (uint8_t *)&adc1_value, 2, HAL_MAX_DELAY);
+            break;
+        case I2C_CASE_ADC_1:
+            HAL_I2C_Master_Transmit(hi2c, I2C_ADDR, (uint8_t *)&adc2_value, 2, HAL_MAX_DELAY);
+            break;
+        case I2C_CASE_GPIOS:
+            HAL_I2C_Master_Transmit(hi2c, I2C_ADDR, &gpio_state, 1, HAL_MAX_DELAY);
+            break;
+        case I2C_CASE_ISO1H816G_POLARITY:
+            HAL_I2C_Master_Receive(hi2c, I2C_ADDR, &polarity, 1, HAL_MAX_DELAY);
+            HAL_SPI_Transmit(&hspi1, &polarity, 1, HAL_MAX_DELAY);
+            break;
+        case I2C_CASE_ISO1H816G_LEVEL:
+            HAL_I2C_Master_Receive(hi2c, I2C_ADDR, &level, 1, HAL_MAX_DELAY);
+            HAL_SPI_Transmit(&hspi1, &level, 1, HAL_MAX_DELAY);
+            break;
+        default:
+            break;
     }
 }
 
@@ -67,10 +135,32 @@ static void MX_ADC1_Init(void) {
         Error_Handler();
     }
 
-    sConfig.Channel = ADC_CHANNEL_1;
+    sConfig.Channel = ADC_CHANNEL_0;
     sConfig.Rank = ADC_REGULAR_RANK_1;
     sConfig.SamplingTime = ADC_SAMPLETIME_1CYCLE_5;
     if (HAL_ADC_ConfigChannel(&hadc1, &sConfig) != HAL_OK) {
+        Error_Handler();
+    }
+}
+
+static void MX_ADC2_Init(void) {
+    ADC_ChannelConfTypeDef sConfig = {0};
+
+    hadc2.Instance = ADC2;
+    hadc2.Init.ScanConvMode = ADC_SCAN_DISABLE;
+    hadc2.Init.ContinuousConvMode = DISABLE;
+    hadc2.Init.DiscontinuousConvMode = DISABLE;
+    hadc2.Init.ExternalTrigConv = ADC_SOFTWARE_START;
+    hadc2.Init.DataAlign = ADC_DATAALIGN_RIGHT;
+    hadc2.Init.NbrOfConversion = 1;
+    if (HAL_ADC_Init(&hadc2) != HAL_OK) {
+        Error_Handler();
+    }
+
+    sConfig.Channel = ADC_CHANNEL_1;
+    sConfig.Rank = ADC_REGULAR_RANK_1;
+    sConfig.SamplingTime = ADC_SAMPLETIME_1CYCLE_5;
+    if (HAL_ADC_ConfigChannel(&hadc2, &sConfig) != HAL_OK) {
         Error_Handler();
     }
 }
